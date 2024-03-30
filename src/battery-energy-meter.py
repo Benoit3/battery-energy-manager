@@ -24,12 +24,19 @@ import dbusmonitor
 def exit_gracefully(signum, stackFrame):
 	logger.info(f"{signal.strsignal(signum)}  Received");
 
+	#depending signal
 	#saving energy meter values
-	data={'dischargedEnergy_Wh':dischargedEnergy.indexWh,'chargedEnergy_Wh':chargedEnergy.indexWh}
+	if signum==signal.SIGTERM or signum==signal.SIGINT:
+		data={'dischargedEnergy_Wh':dischargedEnergy.indexWh,'chargedEnergy_Wh':chargedEnergy.indexWh}
+
+	#or clear them
+	elif signum==signal.SIGHUP:
+		data={'dischargedEnergy_Wh':0,'chargedEnergy_Wh':0}
+		
 	with open('energy.json','w') as f:
 		json.dump(data,f)
 		logger.info(f"Energy meter backup : charged {data['chargedEnergy_Wh']} Wh, discharged {data['dischargedEnergy_Wh']} Wh")
-		
+			
 	#and request end of dbus glib mainloop
 	mainloop.quit()
 
@@ -87,23 +94,27 @@ def energyProcessing():
 	try:
 		#get battery power value
 		power=dbusMonitor.get_value(battery_service,'/Dc/0/Power')
-		logger.info(f"Current Battery power : {power}")
 		
-		#if battery power is positive, update charged meter
-		if power > 0:
-			chargedEnergy.update(power)
+		if power is not None:
+			logger.info(f"Current Battery power : {power}")
+			
+			#if battery power is positive, update charged meter
+			if power > 0:
+				chargedEnergy.update(power)
 
-		#if battery power is negative, update discharged meter
-		if power < 0:
-			dischargedEnergy.update(-power)
-		
-		#refresh dBus values
-		chargedEnergy.dbusRefresh()
-		dischargedEnergy.dbusRefresh()
+			#if battery power is negative, update discharged meter
+			if power < 0:
+				dischargedEnergy.update(-power)
+				
+			#refresh dBus values
+			chargedEnergy.dbusRefresh()
+			dischargedEnergy.dbusRefresh()
 
+		else:
+			logger.warning(f"Current Battery power is None")
 
 	except:
-		logger.exception("Execption in average processing function")
+		logger.exception("Exception in average processing function")
 	
 	#return true to not clear Glib periodic timer	
 	return True
@@ -162,6 +173,9 @@ if __name__ == "__main__":
 		#save indexes and quit the process on SIGTERM or SIGINT signal
 		signal.signal(signal.SIGTERM, exit_gracefully)
 		signal.signal(signal.SIGINT,exit_gracefully)
+		#clear indexes and quit the process on sighup signal
+		signal.signal(signal.SIGHUP,exit_gracefully)
+
 		mainloop.run()
 		
 		#log end of the loop

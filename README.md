@@ -57,6 +57,10 @@ To stop the service with indexes backup :
 ```
 svc -d /service/battery-energy-meter
 ```
+To stop and restart the service with indexes reset to 0 :
+```
+svc -h /service/battery-energy-meter
+```
 To stop the service without indexes backup :
 ```
 svc -k /service/battery-energy-meter
